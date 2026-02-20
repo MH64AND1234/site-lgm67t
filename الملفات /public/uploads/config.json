@@ -1,0 +1,20 @@
+{
+    "security": {
+        "password": "$2y$10$rMkKQI0RDGBz.BO.mJ.0S.bAtnvNIjTk.nXtQCZ6tfRHR2hc4kEEq",
+        "session_timeout": 3600,
+        "allowed_ips": [],
+        "require_auth": false
+    },
+    "display": {
+        "theme": "dark",
+        "view_mode": "grid",
+        "show_hidden": false,
+        "default_sort": "name"
+    },
+    "features": {
+        "enable_search": true,
+        "enable_upload": true,
+        "enable_edit": true,
+        "enable_delete": true
+    }
+}
