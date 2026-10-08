@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📡 رادار الأشخاص</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root{
+    --green:#00ff9c;
+    --green-dim:rgba(0,255,156,.35);
+    --bg:#05080b;
+    --panel:#0a1114;
+    --border:rgba(0,255,156,.18);
+    --text:#cfe9dd;
+  }
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(circle at 50% -10%, #0b2018 0%, #05080b 55%, #030506 100%);
+    color:var(--text);
+    font-family:"Segoe UI", Tahoma, system-ui, sans-serif;
+    min-height:100vh;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    overflow-x:hidden;
+  }
+
+  header{ text-align:center; }
+  header h1{
+    font-size:clamp(20px,3.5vw,30px);
+    font-weight:700;
+    letter-spacing:.5px;
+    color:var(--green);
+    text-shadow:0 0 18px rgba(0,255,156,.45);
+  }
+  header p{
+    font-size:13px;
+    color:rgba(207,233,221,.5);
+    margin-top:4px;
+    letter-spacing:.4px;
+  }
+
+  main{
+    display:flex;
+    gap:20px;
+    align-items:flex-start;
+    justify-content:center;
+    flex-wrap:wrap;
+    width:100%;
+    max-width:1100px;
+  }
+
+  /* ===== الرادار ===== */
+  .radar-wrap{
+    position:relative;
+    flex:0 1 auto;
+    display:flex;
+    justify-content:center;
+  }
+  canvas#radar{
+    display:block;
+    border-radius:50%;
+    box-shadow:
+      0 0 0 1px rgba(0,255,156,.25),
+      0 0 60px rgba(0,255,156,.13),
+      inset 0 0 80px rgba(0,255,156,.06);
+    background:#02100a;
+  }
+  .hud{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:8% 10%;
+    font-size:12px;
+    letter-spacing:.6px;
+  }
+  .hud .top,.hud .bottom{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .hud .badge{
+    background:rgba(0,255,156,.08);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:4px 12px;
+    color:var(--green);
+    font-weight:600;
+    backdrop-filter:blur(4px);
+  }
+  .hud .badge.off{ color:#ff6b6b; border-color:rgba(255,107,107,.3); background:rgba(255,107,107,.08); }
+  .hud .badge.demo{ color:#ffd166; border-color:rgba(255,209,102,.3); background:rgba(255,209,102,.08); }
+  .hud .count{
+    color:#eafff5;
+    font-weight:700;
+    font-size:15px;
+    text-shadow:0 0 12px rgba(0,255,156,.8);
+  }
+
+  /* ===== لوحة التحكم ===== */
+  .panel{
+    flex:0 1 300px;
+    width:300px;
+    min-width:260px;
+    background:linear-gradient(180deg, rgba(0,255,156,.05), rgba(0,255,156,.01));
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    backdrop-filter:blur(6px);
+  }
+
+  .preview{
+    position:relative;
+    width:100%;
+    aspect-ratio:4/3;
+    border-radius:12px;
+    overflow:hidden;
+    background:#02100a;
+    border:1px solid var(--border);
+  }
+  .preview video{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+    opacity:.75;
+    filter:contrast(1.05) saturate(.7);
+  }
+  .preview .label{
+    position:absolute;
+    top:8px; right:8px;
+    font-size:11px;
+    background:rgba(0,0,0,.55);
+    border:1px solid var(--border);
+    color:var(--green);
+    padding:3px 9px;
+    border-radius:999px;
+  }
+  .preview .scan{
+    position:absolute; inset:0;
+    background:repeating-linear-gradient(0deg, rgba(0,255,156,.05) 0 1px, transparent 1px 4px);
+    pointer-events:none;
+  }
+
+  .btns{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  button{
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    padding:11px 10px;
+    border-radius:11px;
+    border:1px solid var(--border);
+    background:rgba(0,255,156,.07);
+    color:var(--green);
+    cursor:pointer;
+    transition:.18s;
+    letter-spacing:.3px;
+  }
+  button:hover{ background:rgba(0,255,156,.16); transform:translateY(-1px); }
+  button:active{ transform:translateY(0); }
+  button.on{
+    background:var(--green);
+    color:#02150d;
+    box-shadow:0 0 20px rgba(0,255,156,.45);
+  }
+  button:disabled{ opacity:.35; cursor:not-allowed; transform:none; }
+  button.wide{ grid-column:1 / -1; }
+
+  .ctrl label{
+    display:flex;
+    justify-content:space-between;
+    font-size:12.5px;
+    color:rgba(207,233,221,.75);
+    margin-bottom:8px;
+  }
+  .ctrl label b{ color:var(--green); font-weight:700; }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:5px;
+    border-radius:99px;
+    background:rgba(0,255,156,.15);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:17px; height:17px;
+    border-radius:50%;
+    background:var(--green);
+    cursor:pointer;
+    box-shadow:0 0 12px rgba(0,255,156,.9);
+    border:2px solid #02150d;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px; height:15px; border:2px solid #02150d;
+    border-radius:50%; background:var(--green); cursor:pointer;
+  }
+
+  .stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    border-top:1px solid rgba(0,255,156,.12);
+    padding-top:12px;
+  }
+  .stat{
+    background:rgba(0,255,156,.04);
+    border:1px solid rgba(0,255,156,.1);
+    border-radius:10px;
+    padding:9px 10px;
+    text-align:center;
+  }
+  .stat span{ display:block; font-size:10.5px; color:rgba(207,233,221,.45); margin-bottom:3px; }
+  .stat b{ font-size:17px; color:var(--green); font-weight:700; }
+
+  .note{
+    font-size:11px;
+    line-height:1.65;
+    color:rgba(207,233,221,.4);
+    border-top:1px solid rgba(0,255,156,.12);
+    padding-top:12px;
+  }
+  .note b{ color:rgba(0,255,156,.75); }
+
+  @media (max-width:720px){
+    .panel{ width:100%; max-width:420px; flex:1 1 100%; }
+    body{ padding:12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📡 رادار الأشخاص</h1>
+  <p>رصد الحركة الحيّة عبر الكاميرا — مسح دائري 360°</p>
+</header>
+
+<main>
+  <div class="radar-wrap" id="radarWrap">
+    <canvas id="radar"></canvas>
+    <div class="hud">
+      <div class="top">
+        <div class="badge off" id="statusBadge">غير مُفعّل</div>
+        <div class="badge" id="modeBadge">كاميرا</div>
+      </div>
+      <div class="bottom">
+        <div class="badge">النطاق 100م</div>
+        <div class="count"><span id="hudCount">0</span> أهداف</div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div class="preview">
+      <video id="cam" playsinline muted autoplay></video>
+      <div class="scan"></div>
+      <div class="label" id="camLabel">الكاميرا متوقفة</div>
+    </div>
+
+    <div class="btns">
+      <button id="startBtn" class="wide">▶ تشغيل الرادار</button>
+      <button id="demoBtn">🧪 محاكاة</button>
+      <button id="swapBtn">🔄 تبديل الكاميرا</button>
+    </div>
+
+    <div class="ctrl">
+      <label>حساسية الرصد <b id="sensVal">55%</b></label>
+      <input type="range" id="sens" min="5" max="100" value="55">
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>الأهداف الحالية</span><b id="statTargets">0</b></div>
+      <div class="stat"><span>معدل الإطارات</span><b id="statFps">0</b></div>
+    </div>
+
+    <button id="soundBtn">🔊 تنبيه صوتي: مغلق</button>
+
+    <div class="note">
+      <b>ملاحظة تقنية:</b> المتصفح لا يستطيع إصدار موجات رادار حقيقية.
+      هذا الرادار يعمل بـ <b>تحليل الفيديو</b> (مقارنة الإطارات) لرصد الأجسام المتحركة
+      وتحويلها لإحداثيات قطبية على الشاشة.
+      <br>يحتاج الموقع إلى <b>HTTPS</b> أو <b>localhost</b> للوصول للكاميرا،
+      ويكشف الحركة فقط — الشخص الساكن تماماً لن يظهر.
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+"use strict";
+
+/* ===================== العناصر ===================== */
+const canvas   = document.getElementById('radar');
+const rctx     = canvas.getContext('2d');
+const video    = document.getElementById('cam');
+const startBtn = document.getElementById('startBtn');
+const demoBtn  = document.getElementById('demoBtn');
+const swapBtn  = document.getElementById('swapBtn');
+const soundBtn = document.getElementById('soundBtn');
+const sensEl   = document.getElementById('sens');
+const sensVal  = document.getElementById('sensVal');
+const statusBadge = document.getElementById('statusBadge');
+const modeBadge   = document.getElementById('modeBadge');
+const camLabel    = document.getElementById('camLabel');
+const hudCount    = document.getElementById('hudCount');
+const statTargets = document.getElementById('statTargets');
+const statFps     = document.getElementById('statFps');
+
+/* ===================== إعدادات ===================== */
+const PW = 160, PH = 120;          // دقة تحليل الفيديو
+const COLS = 20, ROWS = 15;        // شبكة الرصد
+const MAX_ANGLE = 55 * Math.PI/180;// نصف زاوية مجال الكاميرا
+const BLIP_LIFE = 2.4;             // ثواني تلاشي الهدف
+const SWEEP_SPEED = 2.0;           // راديان/ثانية
+
+/* ===================== حالة ===================== */
+let W = 600, H = 600, cx = 300, cy = 300, R = 280;
+let blips = [];
+let sweep = 0;
+let prevFrame = null;
+let running = false;
+let demoMode = false;
+let stream = null;
+let facingMode = 'environment';
+let mirrored = false;
+let sensitivity = 0.55;
+let soundOn = false;
+let audioCtx = null;
+let lastTime = performance.now();
+let fpsAcc = 0, fpsFrames = 0, fpsTimer = 0, fpsShown = 0;
+let demoPeople = [];
+
+/* canvas المعالجة (مخفي) */
+const proc = document.createElement('canvas');
+proc.width = PW; proc.height = PH;
+const pctx = proc.getContext('2d', { willReadFrequently: true });
+
+/* ===================== التحجيم ===================== */
+function resize(){
+  const wrap = document.getElementById('radarWrap');
+  const avail = Math.min(
+    window.innerWidth - (window.innerWidth > 720 ? 380 : 40),
+    window.innerHeight * 0.76
+  );
+  const size = Math.max(260, Math.min(avail, 640));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  canvas.width  = Math.round(size * dpr);
+  canvas.height = Math.round(size * dpr);
+  rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  W = H = size;
+  cx = W/2; cy = H/2; R = size/2 - 14;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ===================== أدوات ===================== */
+const polar = (ang, dist) => ({
+  x: cx + Math.sin(ang) * dist * R,
+  y: cy - Math.cos(ang) * dist * R
+});
+
+function ping(freq){
+  if (!soundOn) return;
+  try{
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t + 0.14);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.2);
+  }catch(e){}
+}
+
+/* ===================== الكاميرا ===================== */
+async function startCamera(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('المتصفح لا يدعم الكاميرا', 'off');
+    return;
+  }
+  try{
+    stopStream();
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facingMode, width:{ideal:640}, height:{ideal:480} },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    mirrored = (facingMode === 'user');
+    video.style.transform = mirrored ? 'scaleX(-1)' : 'none';
+
+    prevFrame = null;
+    demoMode = false;
+    running = true;
+    blips = [];
+
+    setStatus('يعمل — رصد نشط', 'on');
+    modeBadge.textContent = 'كاميرا';
+    modeBadge.className = 'badge';
+    camLabel.textContent = 'بث مباشر';
+    startBtn.textContent = '⏹ إيقاف الرادار';
+    startBtn.classList.add('on');
+    demoBtn.classList.remove('on');
+  }catch(err){
+    setStatus('تعذّر الوصول للكاميرا', 'off');
+    camLabel.textContent = 'مرفوضة أو غير متاحة';
+    console.warn(err);
+  }
+}
+
+function stopStream(){
+  if (stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+}
+
+function stopAll(){
+  running = false;
+  demoMode = false;
+  stopStream();
+  prevFrame = null;
+  blips = [];
+  setStatus('غير مُفعّل', 'off');
+  camLabel.textContent = 'الكاميرا متوقفة';
+  startBtn.textContent = '▶ تشغيل الرادار';
+  startBtn.classList.remove('on');
+  demoBtn.classList.remove('on');
+}
+
+function setStatus(txt, cls){
+  statusBadge.textContent = txt;
+  statusBadge.className = 'badge' + (cls === 'on' ? '' : cls === 'demo' ? ' demo' : ' off');
+}
+
+/* ===================== الأزرار ===================== */
+startBtn.addEventListener('click', () => {
+  if (running && !demoMode) stopAll();
+  else startCamera();
+});
+
+demoBtn.addEventListener('click', () => {
+  if (demoMode){ stopAll(); return; }
+  stopStream();
+  running = true;
+  demoMode = true;
+  blips = [];
+  initDemo();
+  setStatus('وضع المحاكاة', 'demo');
+  modeBadge.textContent = 'محاكاة';
+  modeBadge.className = 'badge demo';
+  camLabel.textContent = 'محاكاة افتراضية';
+  startBtn.textContent = '▶ تشغيل الرادار';
+  startBtn.classList.remove('on');
+  demoBtn.classList.add('on');
+});
+
+swapBtn.addEventListener('click', () => {
+  facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+  if (running && !demoMode) startCamera();
+  else camLabel.textContent = 'الكاميرا: ' + (facingMode === 'user' ? 'أمامية' : 'خلفية');
+});
+
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊 تنبيه صوتي: مفتوح' : '🔇 تنبيه صوتي: مغلق';
+  soundBtn.classList.toggle('on', soundOn);
+  if (soundOn && !audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){}
+  }
+});
+
+sensEl.addEventListener('input', () => {
+  sensitivity = sensEl.value / 100;
+  sensVal.textContent = sensEl.value + '%';
+});
+sensVal.textContent = sensEl.value + '%';
+
+/* ===================== محاكاة ===================== */
+function initDemo(){
+  demoPeople = [];
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++){
+    demoPeople.push({
+      a: Math.random() * Math.PI * 2,
+      d: 0.28 + Math.random() * 0.62,
+      va: (Math.random() - 0.5) * 0.45,
+      vd: (Math.random() - 0.5) * 0.14
+    });
+  }
+}
+
+function updateDemo(dt){
+  for (const p of demoPeople){
+    p.a += p.va * dt;
+    p.d += p.vd * dt;
+    if (p.d < 0.15 || p.d > 0.94){ p.vd *= -1; p.d = Math.max(0.15, Math.min(0.94, p.d)); }
+    p.va += (Math.random() - 0.5) * 0.35 * dt;
+    p.va = Math.max(-0.6, Math.min(0.6, p.va));
+
+    if (Math.random() < 0.75){
+      addBlip(p.a, p.d, 0.85);
+    }
+  }
+}
+
+/* ===================== إدارة الأهداف ===================== */
+function addBlip(ang, dist, strength){
+  // مطابقة مع هدف قريب
+  let best = null, bestD = Infinity;
+  for (const b of blips){
+    const p1 = polar(b.ang, b.dist), p2 = polar(ang, dist);
+    const dx = p1.x - p2.x, dy = p1.y - p2.y;
+    const d = Math.hypot(dx, dy);
+    if (d < bestD){ bestD = d; best = b; }
+  }
+  const matchRadius = R * 0.13;
+
+  if (best && bestD < matchRadius){
+    best.ang = ang;
+    best.dist = dist;
+    best.life = 1;
+    best.strength = Math.max(best.strength * 0.7, strength);
+    best.silent = 0;
+  } else {
+    blips.push({
+      ang, dist,
+      life: 1,
+      age: 0,
+      strength: strength,
+      born: performance.now()
+    });
+    if (blips.length > 24) blips.shift();
+    ping(760 + Math.random() * 260);
+  }
+}
+
+/* ===================== كشف الحركة ===================== */
+function detectMotion(){
+  if (video.readyState < 2 || !video.videoWidth) return;
+
+  pctx.save();
+  if (mirrored){ pctx.translate(PW, 0); pctx.scale(-1, 1); }
+  pctx.drawImage(video, 0, 0, PW, PH);
+  pctx.restore();
+
+  const cur = pctx.getImageData(0, 0, PW, PH).data;
+
+  if (!prevFrame){ prevFrame = cur; return; }
+  const prev = prevFrame;
+
+  // عتبة الفرق حسب الحساسية
+  const thresh = 42 - sensitivity * 30;   // 42 (منخفضة) .. 12 (عالية)
+  const cellW = PW / COLS, cellH = PH / ROWS;
+  const counts = new Float32Array(COLS * ROWS);
+
+  for (let y = 0; y < PH; y++){
+    const rowOff = y * PW;
+    const cyi = Math.min(ROWS - 1, (y / cellH) | 0);
+    for (let x = 0; x < PW; x++){
+      const i = (rowOff + x) * 4;
+      const dr = cur[i]   - prev[i];
+      const dg = cur[i+1] - prev[i+1];
+      const db = cur[i+2] - prev[i+2];
+      const diff = (Math.abs(dr) + Math.abs(dg) + Math.abs(db)) * 0.3333;
+      if (diff > thresh){
+        const cxi = Math.min(COLS - 1, (x / cellW) | 0);
+        counts[cyi * COLS + cxi]++;
+      }
+    }
+  }
+  prevFrame = cur;
+
+  // خلايا نشطة
+  const active = new Uint8Array(COLS * ROWS);
+  const minPixels = cellW * cellH * 0.10;
+  let anyActive = false;
+  for (let i = 0; i < counts.length; i++){
+    if (counts[i] > minPixels){ active[i] = 1; anyActive = true; }
+  }
+  if (!anyActive) return;
+
+  // توصيل المكوّنات (BFS)
+  const visited = new Uint8Array(COLS * ROWS);
+  for (let i = 0; i < active.length; i++){
+    if (!active[i] || visited[i]) continue;
+
+    const stack = [i];
+    visited[i] = 1;
+    let sumX = 0, sumY = 0, n = 0, weight = 0;
+
+    while (stack.length){
+      const idx = stack.pop();
+      const gx = idx % COLS, gy = (idx / COLS) | 0;
+      sumX += (gx + 0.5) * cellW;
+      sumY += (gy + 0.5) * cellH;
+      weight += counts[idx];
+      n++;
+
+      const neigh = [
+        [gx-1,gy],[gx+1,gy],[gx,gy-1],[gx,gy+1],
+        [gx-1,gy-1],[gx+1,gy-1],[gx-1,gy+1],[gx+1,gy+1]
+      ];
+      for (let k = 0; k < 8; k++){
+        const nx = neigh[k][0], ny = neigh[k][1];
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        const ni = ny * COLS + nx;
+        if (active[ni] && !visited[ni]){ visited[ni] = 1; stack.push(ni); }
+      }
+    }
+
+    if (n < 2) continue;
+
+    const px = sumX / n;
+    const py = sumY / n;
+
+    // تحويل إلى إحداثيات قطبية
+    const nx = (px - PW/2) / (PW/2);
+    const ny = (py - PH/2) / (PH/2);
+
+    const ang  = nx * MAX_ANGLE;
+    const dist = (1 - ny) / 2;                 // أسفل = قريب ، أعلى = بعيد
+    const strength = Math.min(1, weight / (n * cellW * cellH * 0.45));
+
+    if (dist > 0.06 && dist < 1.05){
+      addBlip(ang, dist, strength);
+    }
+  }
+}
+
+/* ===================== الرسم ===================== */
+function drawRadar(dt){
+  rctx.clearRect(0, 0, W, H);
+
+  // خلفية دائرية
+  const bg = rctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  bg.addColorStop(0,   '#06301c');
+  bg.addColorStop(0.6, '#04170f');
+  bg.addColorStop(1,   '#020a06');
+  rctx.beginPath();
+  rctx.arc(cx, cy, R, 0, Math.PI*2);
+  rctx.fillStyle = bg;
+  rctx.fill();
+
+  rctx.save();
+  rctx.beginPath();
+  rctx.arc(cx, cy, R, 0, Math.PI*2);
+  rctx.clip();
+
+  // مخروط مجال الكاميرا
+  if (!demoMode && running){
+    rctx.beginPath();
+    rctx.moveTo(cx, cy);
+    rctx.arc(cx, cy, R, -Math.PI/2 - MAX_ANGLE, -Math.PI/2 + MAX_ANGLE);
+    rctx.closePath();
+    const cone = rctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    cone.addColorStop(0, 'rgba(0,255,156,0.10)');
+    cone.addColorStop(1, 'rgba(0,255,156,0.01)');
+    rctx.fillStyle = cone;
+    rctx.fill();
+  }
+
+  // حلقات
+  rctx.strokeStyle = 'rgba(0,255,156,0.16)';
+  rctx.lineWidth = 1;
+  for (let i = 1; i <= 4; i++){
+    rctx.beginPath();
+    rctx.arc(cx, cy, R * i / 4, 0, Math.PI*2);
+    rctx.stroke();
+  }
+
+  // خطوط متقاطعة
+  rctx.strokeStyle = 'rgba(0,255,156,0.10)';
+  for (let i = 0; i < 12; i++){
+    const a = (i / 12) * Math.PI * 2;
+    rctx.beginPath();
+    rctx.moveTo(cx, cy);
+    rctx.lineTo(cx + Math.sin(a) * R, cy - Math.cos(a) * R);
+    rctx.stroke();
+  }
+
+  // تدريج الحلقات
+  rctx.fillStyle = 'rgba(0,255,156,0.32)';
+  rctx.font = '10px "Segoe UI", sans-serif';
+  rctx.textAlign = 'center';
+  for (let i = 1; i <= 4; i++){
+    rctx.fillText((i * 25) + 'م', cx, cy - R * i / 4 + 12);
+  }
+
+  // الذراع الدوّار
+  const trail = 1.15;
+  const steps = 34;
+  for (let i = 0; i < steps; i++){
+    const f = i / steps;
+    const a0 = sweep - trail * f - trail / steps;
+    const a1 = sweep - trail * f;
+    rctx.beginPath();
+    rctx.moveTo(cx, cy);
+    rctx.arc(cx, cy, R, a0 - Math.PI/2, a1 - Math.PI/2);
+    rctx.closePath();
+    rctx.fillStyle = 'rgba(0,255,156,' + (0.30 * (1 - f) * (1 - f)) + ')';
+    rctx.fill();
+  }
+  // خط الذراع
+  rctx.beginPath();
+  rctx.moveTo(cx, cy);
+  rctx.lineTo(cx + Math.sin(sweep) * R, cy - Math.cos(sweep) * R);
+  rctx.strokeStyle = 'rgba(150,255,205,0.85)';
+  rctx.lineWidth = 1.6;
+  rctx.shadowColor = 'rgba(0,255,156,0.9)';
+  rctx.shadowBlur = 14;
+  rctx.stroke();
+  rctx.shadowBlur = 0;
+
+  // الأهداف
+  for (const b of blips){
+    const p = polar(b.ang, b.dist);
+    const a = Math.max(0, Math.min(1, b.life));
+    if (a <= 0.01) continue;
+
+    // هالة
+    const g = rctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 26);
+    g.addColorStop(0,   'rgba(180,255,225,' + (0.95 * a) + ')');
+    g.addColorStop(0.35,'rgba(0,255,156,'   + (0.55 * a) + ')');
+    g.addColorStop(1,   'rgba(0,255,156,0)');
+    rctx.beginPath();
+    rctx.arc(p.x, p.y, 26, 0, Math.PI*2);
+    rctx.fillStyle = g;
+    rctx.fill();
+
+    // النواة
+    rctx.beginPath();
+    rctx.arc(p.x, p.y, 3.6, 0, Math.PI*2);
+    rctx.fillStyle = 'rgba(230,255,245,' + a + ')';
+    rctx.fill();
+
+    // حلقة تتمدد عند الظهور
+    const age = (performance.now() - b.born) / 1000;
+    if (age < 1.1){
+      rctx.beginPath();
+      rctx.arc(p.x, p.y, 6 + age * 30, 0, Math.PI*2);
+      rctx.strokeStyle = 'rgba(0,255,156,' + (0.55 * (1 - age/1.1)) + ')';
+      rctx.lineWidth = 2;
+      rctx.stroke();
+    }
+  }
+
+  // المركز
+  rctx.beginPath();
+  rctx.arc(cx, cy, 3, 0, Math.PI*2);
+  rctx.fillStyle = '#00ff9c';
+  rctx.shadowColor = '#00ff9c';
+  rctx.shadowBlur = 14;
+  rctx.fill();
+  rctx.shadowBlur = 0;
+
+  rctx.restore();
+
+  // إطار خارجي
+  rctx.beginPath();
+  rctx.arc(cx, cy, R, 0, Math.PI*2);
+  rctx.strokeStyle = 'rgba(0,255,156,0.45)';
+  rctx.lineWidth = 1.5;
+  rctx.stroke();
+}
+
+/* ===================== الحلقة الرئيسية ===================== */
+function loop(now){
+  requestAnimationFrame(loop);
+
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 0.12) dt = 0.12;
+
+  // مؤشر الإطارات
+  fpsFrames++; fpsTimer += dt;
+  if (fpsTimer >= 0.5){
+    fpsShown = Math.round(fpsFrames / fpsTimer);
+    statFps.textContent = fpsShown;
+    fpsFrames = 0; fpsTimer = 0;
+  }
+
+  sweep += SWEEP_SPEED * dt;
+  if (sweep > Math.PI*2) sweep -= Math.PI*2;
+
+  if (running){
+    if (demoMode) updateDemo(dt);
+    else detectMotion();
+  }
+
+  // تقادم الأهداف
+  for (let i = blips.length - 1; i >= 0; i--){
+    const b = blips[i];
+    b.age += dt;
+    b.life -= dt / BLIP_LIFE;
+    if (b.life <= 0) blips.splice(i, 1);
+  }
+
+  drawRadar(dt);
+
+  const n = blips.length;
+  hudCount.textContent = n;
+  statTargets.textContent = n;
+}
+
+/* ===================== تشغيل ===================== */
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
